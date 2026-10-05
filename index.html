@@ -803,14 +803,25 @@
 
             // 云端同步
             if (currentUser) {
-                try {
-                    await db.from('quiz_wrong_questions').upsert({
+                const { data: existing, error: queryErr } = await db
+                    .from('quiz_wrong_questions')
+                    .select('id')
+                    .eq('user_id', currentUser.id)
+                    .eq('category', category)
+                    .eq('question_data->>question', question.question)
+                    .limit(1);
+
+                if (queryErr) {
+                    console.warn('查询错题失败：', queryErr);
+                } else if (!existing || existing.length === 0) {
+                    const { error: insertErr } = await db.from('quiz_wrong_questions').insert({
                         user_id: currentUser.id,
                         category: category,
                         question_data: data
-                    }, { onConflict: 'user_id,category,question_data->>question' });
-                } catch (err) {
-                    console.warn('云端保存错题失败：', err);
+                    });
+                    if (insertErr) {
+                        console.warn('云端保存错题失败：', insertErr);
+                    }
                 }
             }
         }
