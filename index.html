@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" href="data:,">
     <title>答题刷题应用</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
@@ -387,6 +388,7 @@
             <div id="history-list" class="history-list"></div>
             <div class="btn-group">
                 <button class="btn-secondary" onclick="showCategoryScreen()">返回</button>
+                <button class="btn-secondary" onclick="renderHistory()">🔄 刷新</button>
             </div>
         </div>
 
@@ -801,7 +803,7 @@
                 localStorage.setItem(WRONG_QUESTIONS_KEY, JSON.stringify(all));
             }
 
-            // 云端同步
+            // 云端同步，先查再插
             if (currentUser) {
                 const { data: existing, error: queryErr } = await db
                     .from('quiz_wrong_questions')
@@ -812,7 +814,7 @@
                     .limit(1);
 
                 if (queryErr) {
-                    console.warn('查询错题失败：', queryErr);
+                    console.warn('查询云端错题失败：', queryErr);
                 } else if (!existing || existing.length === 0) {
                     const { error: insertErr } = await db.from('quiz_wrong_questions').insert({
                         user_id: currentUser.id,
@@ -840,14 +842,13 @@
 
             // 云端移除
             if (currentUser) {
-                try {
-                    await db.from('quiz_wrong_questions')
-                        .delete()
-                        .eq('user_id', currentUser.id)
-                        .eq('category', category)
-                        .eq('question_data->>question', key);
-                } catch (err) {
-                    console.warn('云端删除错题失败：', err);
+                const { error } = await db.from('quiz_wrong_questions')
+                    .delete()
+                    .eq('user_id', currentUser.id)
+                    .eq('category', category)
+                    .eq('question_data->>question', key);
+                if (error) {
+                    console.warn('云端删除错题失败：', error);
                 }
             }
         }
