@@ -388,7 +388,7 @@
             <div id="history-list" class="history-list"></div>
             <div class="btn-group">
                 <button class="btn-secondary" onclick="showCategoryScreen()">返回</button>
-                <button class="btn-secondary" onclick="renderHistory()">🔄 刷新</button>
+                <button class="btn-secondary" onclick="renderHistory()">刷新</button>
             </div>
         </div>
 
@@ -1492,21 +1492,25 @@
             if (isCorrect) {
                 score++;
                 playCorrectSound();
-                // 错题回顾模式答对 → 从错题本移除
-                if (isReviewMode) {
-                    await removeFromWrongList(question);
-                }
             } else {
                 playWrongSound();
-                // 普通模式答错 → 加入错题本（错题回顾中答错则保留，不重复添加）
-                if (!isReviewMode) {
-                    await addToWrongList(question);
-                }
             }
 
+            // 1. 先立即渲染 UI 反馈，用户无需等待网络
             renderAnsweredState(question);
             saveProgress();
             updateStats();
+
+            // 2. 后台异步同步错题（不 await，不阻塞界面）
+            if (isCorrect) {
+                if (isReviewMode) {
+                    removeFromWrongList(question);   // fire and forget
+                }
+            } else {
+                if (!isReviewMode) {
+                    addToWrongList(question);        // fire and forget
+                }
+            }
         }
 
         // ==================== 下一题 ====================
@@ -1563,13 +1567,12 @@
 
             // 2. 已登录则同步云端
             if (currentUser) {
-                try {
-                    await db.from('quiz_history').insert({
-                        user_id: currentUser.id,
-                        ...record
-                    });
-                } catch (err) {
-                    console.warn('云端保存历史记录失败：', err);
+                const { error } = await db.from('quiz_history').insert({
+                    user_id: currentUser.id,
+                    ...record
+                });
+                if (error) {
+                    console.warn('云端保存历史记录失败：', error);
                 }
             }
         }
