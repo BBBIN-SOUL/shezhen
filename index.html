@@ -1544,11 +1544,14 @@
             const modeText = isReviewMode 
                 ? '错题回顾' 
                 : `${Math.round(currentMode.seconds / 60)}分钟${currentMode.count}题`;
-            await saveHistoryRecord(currentCategory, modeText, score, total);
-            
+
+            // 先切屏，让用户立即回到主页
             localStorage.removeItem(STORAGE_KEY);
-            isReviewMode = false;   // 新增
+            isReviewMode = false;
             showCategoryScreen();
+
+            // 后台异步保存历史记录，不阻塞界面
+            saveHistoryRecord(currentCategory, modeText, score, total);
         }
 
         // ==================== 保存历史记录 ====================
