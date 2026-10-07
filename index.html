@@ -1017,46 +1017,54 @@
             renderHistory();
         }
 
-        //从云端读取
+        //云端 + 本地合并
         async function renderHistory() {
             const container = document.getElementById('history-list');
-            let history = [];
+            let cloudHistory = [];
+            const localHistory = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]');
 
-            // 优先从云端读取（如果已登录）
+            // 尝试从云端读取（如果已登录）
             if (currentUser) {
-                try {
-                    const { data, error } = await db
-                        .from('quiz_history')
-                        .select('*')
-                        .order('created_at', { ascending: false })
-                        .limit(200);
-                    if (!error && data && data.length > 0) {
-                        history = data.map(item => ({
-                            date: item.date,
-                            time: item.time,
-                            category: item.category,
-                            mode: item.mode,
-                            score: item.score,
-                            total: item.total,
-                            timestamp: new Date(item.created_at).getTime()
-                        }));
-                    }
-                } catch (err) {
-                    console.warn('云端读取历史记录失败，使用本地数据：', err);
+                const { data, error } = await db
+                    .from('quiz_history')
+                    .select('*')
+                    .order('created_at', { ascending: false })
+                    .limit(200);
+                if (error) {
+                    console.warn('云端读取历史记录失败：', error);
+                } else if (data) {
+                    cloudHistory = data.map(item => ({
+                        date: item.date,
+                        time: item.time,
+                        category: item.category,
+                        mode: item.mode,
+                        score: item.score,
+                        total: item.total,
+                        timestamp: new Date(item.created_at).getTime()
+                    }));
                 }
             }
 
-            // 云端无数据或未登录时，回退到本地
-            if (history.length === 0) {
-                history = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]');
-            }
+            // 合并云端 + 本地，按关键字段去重
+            const seen = new Set();
+            const merged = [];
+            [...cloudHistory, ...localHistory].forEach(r => {
+                const key = `${r.date}|${r.time}|${r.category}|${r.mode}|${r.score}|${r.total}`;
+                if (!seen.has(key)) {
+                    seen.add(key);
+                    merged.push(r);
+                }
+            });
+            merged.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+
+            const history = merged;
 
             if (history.length === 0) {
                 container.innerHTML = '<p style="text-align:center;color:#888;">暂无历史记录</p>';
                 return;
             }
 
-            // 按日期分组
+            // 按日期分组渲染
             const groups = {};
             history.forEach(item => {
                 if (!groups[item.date]) groups[item.date] = [];
