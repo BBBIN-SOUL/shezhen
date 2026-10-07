@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <link rel="icon" href="data:,">
     <title>答题刷题应用</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -11,6 +11,11 @@
             box-sizing: border-box;
             margin: 0;
             padding: 0;
+        }
+        html, body {
+            touch-action: pan-x pan-y;   /* 只允许滚动，禁止双击/双指缩放 */
+            -webkit-text-size-adjust: 100%;  /* 防止 iOS 字体自动放大 */
+            -webkit-tap-highlight-color: transparent;  /* 去除点击时的高亮方块 */
         }
         body {
             font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif;
@@ -1019,6 +1024,7 @@
 
         //云端 + 本地合并
         async function renderHistory() {
+            container.innerHTML = '<p style="text-align:center;color:#888;">加载中...</p>';
             const container = document.getElementById('history-list');
             let cloudHistory = [];
             const localHistory = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]');
@@ -1606,6 +1612,16 @@
             document.getElementById('time-left').textContent = 
                 `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
         }
+
+        // 禁止双击放大
+        let lastTouchEnd = 0;
+        document.addEventListener('touchend', function (e) {
+            const now = Date.now();
+            if (now - lastTouchEnd <= 300) {
+                e.preventDefault();
+            }
+            lastTouchEnd = now;
+        }, { passive: false });
 
         // ==================== 启动应用 ====================
         window.onload = init;
