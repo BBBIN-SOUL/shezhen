@@ -1024,7 +1024,6 @@
 
         //云端 + 本地合并
         async function renderHistory() {
-            container.innerHTML = '<p style="text-align:center;color:#888;">加载中...</p>';
             const container = document.getElementById('history-list');
             let cloudHistory = [];
             const localHistory = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]');
