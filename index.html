@@ -265,7 +265,8 @@
             justify-content: center;
             align-items: center;
             gap: 10px;
-            margin-bottom: 15px;
+            margin-top: 55px;
+            margin-bottom: 0;
             font-size: 0.9rem;
             color: #555;
             flex-wrap: wrap;
@@ -362,10 +363,6 @@
         <div id="category-screen">
             <h2>选择科目</h2>
             <div class="category-buttons" id="category-buttons"></div>
-            <div class="auth-status-bar" id="auth-status-bar">
-                <span>未登录，历史记录和错题仅保存在本机</span>
-                <button class="btn-secondary" id="auth-toggle-btn" onclick="openAuthModal()" style="padding:6px 14px;font-size:0.9rem;">👤 登录</button>
-            </div>
             <div class="btn-group">
                 <button class="btn-secondary" onclick="document.getElementById('file-input').click()">📂 导入题库</button>
                 <button class="btn-secondary" onclick="showHistoryScreen()">📜 历史记录</button>
@@ -426,7 +423,10 @@
         </div>
 
         <div class="footer">
-            💾 进度自动保存在本地浏览器中
+            <div class="auth-status-bar" id="auth-status-bar">
+                <span>未登录</span>
+                <button class="btn-secondary" id="auth-toggle-btn" onclick="openAuthModal()" style="padding:6px 14px;font-size:0.9rem;">👤 登录</button>
+            </div>
         </div>
     </div>
 
@@ -669,9 +669,9 @@
 
             const statusBar = document.getElementById('auth-status-bar');
             if (currentUser) {
-                statusBar.innerHTML = `已登录：<span class="user-email">${escapeHtml(currentUser.email)}</span> <button class="btn-secondary" id="auth-toggle-btn" onclick="handleLogout()" style="padding:6px 14px;font-size:0.9rem;">退出登录</button>`;
+                statusBar.innerHTML = `已登录:<span class="user-email">${escapeHtml(currentUser.email)}</span> <button class="btn-secondary" id="auth-toggle-btn" onclick="handleLogout()" style="padding:6px 14px;font-size:0.9rem;">退出</button>`;
             } else {
-                statusBar.innerHTML = `未登录，历史记录和错题仅保存在本机 <button class="btn-secondary" id="auth-toggle-btn" onclick="openAuthModal()" style="padding:6px 14px;font-size:0.9rem;">👤 登录</button>`;
+                statusBar.innerHTML = `未登录<button class="btn-secondary" id="auth-toggle-btn" onclick="openAuthModal()" style="padding:6px 14px;font-size:0.9rem;">👤 登录</button>`;
             }
 
             // 登录状态变化后，刷新当前屏幕
