@@ -279,6 +279,9 @@
         .hidden {
             display: none;
         }
+        body.modal-open {
+            overflow: hidden;
+        }
         .footer {
             margin-top: 30px;
             text-align: center;
@@ -451,12 +454,12 @@
                 <input type="password" id="auth-password" class="fill-input" placeholder="密码（至少6位）" autocomplete="current-password">
             </div>
             <div id="auth-error" style="color:#dc3545;font-size:0.9rem;margin-bottom:10px;min-height:1.2em;white-space:pre-line;"></div>
-            <div class="modal-buttons" style="justify-content:space-between;flex-wrap:wrap;">
-                <button class="btn-secondary" id="auth-switch-btn" onclick="switchAuthMode()">没有账号？去注册</button>
-                <div style="display:flex;gap:8px;">
-                    <button class="btn-secondary" onclick="closeAuthModal()">取消</button>
-                    <button class="btn-primary" id="auth-submit-btn" onclick="submitAuth()">登录</button>
-                </div>
+            <div style="display:flex;justify-content:center;gap:10px;margin-bottom:14px;">
+                <button class="btn-secondary" onclick="closeAuthModal()" style="padding:8px 22px;font-size:0.95rem;">取消</button>
+                <button class="btn-primary" id="auth-submit-btn" onclick="submitAuth()" style="padding:8px 22px;font-size:0.95rem;">登录</button>
+            </div>
+            <div style="text-align:center;">
+                <button class="btn-secondary" id="auth-switch-btn" onclick="switchAuthMode()" style="padding:6px 14px;font-size:0.85rem;">没有账号？去注册</button>
             </div>
         </div>
     </div>
@@ -604,10 +607,15 @@
             document.getElementById('auth-email').value = '';
             document.getElementById('auth-password').value = '';
             document.getElementById('auth-modal').classList.remove('hidden');
+            lockBodyScroll();
         }
 
         function closeAuthModal() {
-            document.getElementById('auth-modal').classList.add('hidden');
+            const modal = document.getElementById('auth-modal');
+            if (!modal.classList.contains('hidden')) {
+                modal.classList.add('hidden');
+                unlockBodyScroll();
+            }
         }
 
         function switchAuthMode() {
@@ -618,15 +626,29 @@
 
         function updateAuthUI() {
             document.getElementById('auth-title').textContent = authMode === 'login' ? '登录' : '注册';
-            document.getElementById('auth-submit-btn').textContent = authMode === 'login' ? '登录' : '注册';
+            const submitBtn = document.getElementById('auth-submit-btn');
+            submitBtn.textContent = authMode === 'login' ? '登录' : '注册';
+            // 根据模式切换颜色：登录蓝色，注册绿色
+            submitBtn.className = authMode === 'login' ? 'btn-primary' : 'btn-success';
             document.getElementById('auth-switch-btn').textContent = authMode === 'login' ? '没有账号？去注册' : '已有账号？去登录';
+        }
+
+        function withTimeout(promise, ms, timeoutMsg) {
+            return Promise.race([
+                promise,
+                new Promise((_, reject) => setTimeout(() => reject(new Error(timeoutMsg || '请求超时')), ms))
+            ]);
         }
 
         async function submitAuth() {
             const email = document.getElementById('auth-email').value.trim();
             const password = document.getElementById('auth-password').value;
             const errorEl = document.getElementById('auth-error');
+            const submitBtn = document.getElementById('auth-submit-btn');
             errorEl.textContent = '';
+
+            // 播放点击音效
+            playClickSound();
 
             if (!email || !password) {
                 errorEl.textContent = '请输入邮箱和密码。';
@@ -637,12 +659,19 @@
                 return;
             }
 
+            // 禁用按钮，防止重复点击
+            submitBtn.disabled = true;
+            const originalText = submitBtn.textContent;
+            submitBtn.textContent = authMode === 'login' ? '登录中...' : '注册中...';
+            submitBtn.style.opacity = '0.6';
+            submitBtn.style.cursor = 'not-allowed';
+
             try {
                 let result;
                 if (authMode === 'register') {
-                    result = await db.auth.signUp({ email, password });
+                    result = await withTimeout(db.auth.signUp({ email, password }), 15000, '注册请求超时，请检查网络后重试');
                 } else {
-                    result = await db.auth.signInWithPassword({ email, password });
+                    result = await withTimeout(db.auth.signInWithPassword({ email, password }), 15000, '登录请求超时，请检查网络后重试');
                 }
 
                 if (result.error) {
@@ -650,7 +679,6 @@
                     return;
                 }
 
-                // 注册时如果开启了邮箱确认，session 可能为 null
                 if (authMode === 'register' && !result.data.session) {
                     errorEl.textContent = '注册成功！请到邮箱点击确认链接后再登录。';
                     return;
@@ -660,6 +688,12 @@
                 await refreshAuthState();
             } catch (err) {
                 errorEl.textContent = '操作失败：' + (err.message || err);
+            } finally {
+                // 恢复按钮状态
+                submitBtn.disabled = false;
+                submitBtn.textContent = originalText;
+                submitBtn.style.opacity = '';
+                submitBtn.style.cursor = '';
             }
         }
 
@@ -686,6 +720,22 @@
             currentUser = null;
             await refreshAuthState();
             showAlert('已退出登录。', '提示');
+        }
+
+        // ==================== 弹窗滚动锁 ====================
+        let modalCount = 0;
+
+        function lockBodyScroll() {
+            modalCount++;
+            document.body.classList.add('modal-open');
+        }
+
+        function unlockBodyScroll() {
+            modalCount--;
+            if (modalCount <= 0) {
+                modalCount = 0;
+                document.body.classList.remove('modal-open');
+            }
         }
 
         // ==================== 自定义弹窗 ====================
@@ -716,6 +766,7 @@
                     overlay.classList.add('hidden');
                     okBtn.onclick = null;
                     cancelBtn.onclick = null;
+                    unlockBodyScroll();
                 };
 
                 okBtn.onclick = () => {
@@ -728,6 +779,7 @@
                 };
 
                 overlay.classList.remove('hidden');
+                lockBodyScroll();
             });
         }
 
