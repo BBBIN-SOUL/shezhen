@@ -375,6 +375,7 @@
 
         <!-- 模式选择屏 -->
         <div id="mode-screen" class="hidden">
+            <div id="mode-category-display" style="text-align:center;font-size:0.95rem;color:#888;margin-bottom:8px;"></div>
             <h2>选择练习模式</h2>
             <div class="mode-buttons">
                 <button class="btn-primary" onclick="startQuiz(30, 600)">10分钟30题</button>
@@ -393,7 +394,7 @@
             <div id="history-list" class="history-list"></div>
             <div class="btn-group">
                 <button class="btn-secondary" onclick="showCategoryScreen()">返回</button>
-                <button class="btn-secondary" onclick="renderHistory()">刷新</button>
+                <button class="btn-secondary" id="history-refresh-btn" onclick="refreshHistory()">刷新</button>
             </div>
         </div>
 
@@ -1000,7 +1001,17 @@
 
                     // 5. 返回科目选择界面
                     showCategoryScreen();
-                    showAlert(`成功导入 ${questions.length} 道题目！`, '导入成功');
+                    // 统计各题型数量
+                    const counts = { single: 0, judge: 0, fill: 0 };
+                    questions.forEach(q => {
+                        const t = q.type || 'single';
+                        if (counts[t] !== undefined) counts[t]++;
+                    });
+                    const typeSummary = 
+                        `单选题：${counts.single} 道\n` +
+                        `判断题：${counts.judge} 道\n` +
+                        `填空题：${counts.fill} 道`;
+                    showAlert(`成功导入 ${questions.length} 道题目！\n\n${typeSummary}`, '导入成功');
                 } catch (err) {
                     showAlert('导入失败：无法解析 JSON 文件。\n错误信息：' + (err && err.message ? err.message : err), '导入失败');
                     //showAlert('导入失败：无法解析 JSON 文件，请检查格式。', '导入失败');
@@ -1154,10 +1165,51 @@
             container.innerHTML = html;
         }
 
+        //历史记录屏 刷新按钮
+        async function refreshHistory() {
+            const btn = document.getElementById('history-refresh-btn');
+            if (!btn) return;
+            if (btn.disabled) return;
+
+            // 播放点击音效
+            playClickSound();
+
+            // 禁用按钮，显示"刷新中..."
+            btn.disabled = true;
+            const originalText = btn.textContent;
+            btn.textContent = '🔄...';
+            btn.style.opacity = '0.6';
+            btn.style.cursor = 'not-allowed';
+
+            // 保证"刷新中..."至少显示 600ms，避免一闪而过
+            const startTime = Date.now();
+            const minDisplayMs = 600;
+
+            try {
+                // 15 秒超时兜底
+                await withTimeout(renderHistory(), 15000, '刷新请求超时，请检查网络后重试');
+            } catch (err) {
+                console.warn('刷新失败：', err);
+                // 可选：给用户提示（不想打扰的话可以注释掉）
+                // showAlert('刷新失败：' + (err.message || err), '提示');
+            } finally {
+                // 保证最短显示时间
+                const elapsed = Date.now() - startTime;
+                if (elapsed < minDisplayMs) {
+                    await new Promise(r => setTimeout(r, minDisplayMs - elapsed));
+                }
+                btn.disabled = false;
+                btn.textContent = originalText;
+                btn.style.opacity = '';
+                btn.style.cursor = '';
+            }
+        }
+
         async function showModeScreen(category) {
             currentCategory = category;
             showScreen('mode-screen');
             currentScreen = 'mode';
+            document.getElementById('mode-category-display').textContent = category;
             const badge = document.getElementById('wrong-count-badge');
             if (badge) {
                 const list = await getWrongListAsync(currentCategory);
