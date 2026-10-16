@@ -113,6 +113,13 @@
             border-color: #dc3545;
             color: #721c24;
         }
+        /* 键盘导航焦点高亮 */
+        .category-buttons button.keyboard-focus,
+        .mode-buttons button.keyboard-focus {
+            border-color: #2196F3;
+            box-shadow: 0 0 0 3px rgba(33, 150, 243, 0.25);
+            background: #e3f2fd;
+        }
         /* 填空题输入框 */
         .fill-container {
             margin-top: 10px;
@@ -477,6 +484,11 @@
         let fillAnswer = '';   // 新增：填空题用户输入内容
         let answeredCount = 0;   // 新增：本次答题实际作答的题数
         let currentScreen = 'category';
+        let categoryScrollY = 0;   // 保存科目选择页的滚动位置
+        let keyboardCategoryIndex = 0;  // 科目屏键盘高亮索引
+        let keyboardModeIndex = 0;      // 模式屏键盘高亮索引
+        let keyboardCategoryActive = false;  // 科目屏是否已用键盘激活
+        let keyboardModeActive = false;      // 模式屏是否已用键盘激活
         let currentCategory = '';
         let currentMode = { count: 0, seconds: 0 };
         let isReviewMode = false;   // 新增：是否处于错题回顾模式
@@ -1061,21 +1073,208 @@
                     }
                 } catch (e) {}
             }
+            document.addEventListener('keydown', handleKeyDown);
             showCategoryScreen();
         }
 
         // ==================== 屏幕切换 ====================
         function showScreen(screenId) {
+            // 1. 即将离开 category-screen 时，记录当前滚动位置
+            if (currentScreen === 'category' && screenId !== 'category-screen') {
+                categoryScrollY = window.scrollY;
+            }
+
+            // 2. 切换屏幕显示
             document.getElementById('category-screen').classList.add('hidden');
             document.getElementById('mode-screen').classList.add('hidden');
             document.getElementById('quiz-screen').classList.add('hidden');
             document.getElementById('history-screen').classList.add('hidden');
             document.getElementById(screenId).classList.remove('hidden');
+
+            // 3. 回到 category-screen 时，恢复滚动位置
+            if (screenId === 'category-screen') {
+                // 用 requestAnimationFrame 确保 DOM 已完成重新布局
+                requestAnimationFrame(() => {
+                    window.scrollTo(0, categoryScrollY);
+                });
+            }
         }
+
+        // ==================== 键盘导航 ====================
+        function handleKeyDown(e) {
+            const authModalOpen = !document.getElementById('auth-modal').classList.contains('hidden');
+            const modalOpen = !document.getElementById('modal-overlay').classList.contains('hidden');
+
+            // 弹窗打开时：Enter 触发确定/提交按钮
+            if (authModalOpen || modalOpen) {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    if (authModalOpen) {
+                        const submitBtn = document.getElementById('auth-submit-btn');
+                        if (submitBtn && !submitBtn.disabled) submitBtn.click();
+                    } else if (modalOpen) {
+                        const okBtn = document.getElementById('modal-ok');
+                        if (okBtn) okBtn.click();
+                    }
+                }
+                return;
+            }
+
+            const tag = document.activeElement && document.activeElement.tagName;
+            const isFillInput = document.activeElement && document.activeElement.id === 'fill-input';
+
+            // 输入框：只有填空题输入框允许 Enter 提交
+            if (tag === 'INPUT' || tag === 'TEXTAREA') {
+                if (isFillInput && e.key === 'Enter' && currentScreen === 'quiz') {
+                    e.preventDefault();
+                    submitAnswer();
+                }
+                return;
+            }
+
+            if (currentScreen === 'category') {
+                handleCategoryKeyboard(e);
+            } else if (currentScreen === 'mode') {
+                handleModeKeyboard(e);
+            } else if (currentScreen === 'quiz') {
+                handleQuizKeyboard(e);
+            }
+        }
+
+        function handleCategoryKeyboard(e) {
+            const buttons = document.querySelectorAll('#category-buttons button');
+            if (buttons.length === 0) return;
+
+            if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+                e.preventDefault();
+                if (!keyboardCategoryActive) {
+                    // 首次按下：激活高亮
+                    keyboardCategoryActive = true;
+                    keyboardCategoryIndex = e.key === 'ArrowDown' ? 0 : buttons.length - 1;
+                } else {
+                    if (e.key === 'ArrowDown') {
+                        keyboardCategoryIndex = (keyboardCategoryIndex + 1) % buttons.length;
+                    } else {
+                        keyboardCategoryIndex = (keyboardCategoryIndex - 1 + buttons.length) % buttons.length;
+                    }
+                }
+                updateCategoryKeyboardFocus();
+            } else if (e.key === 'Enter' && keyboardCategoryActive) {
+                e.preventDefault();
+                buttons[keyboardCategoryIndex].click();
+            }
+        }
+
+        function updateCategoryKeyboardFocus() {
+            const buttons = document.querySelectorAll('#category-buttons button');
+            buttons.forEach((btn, idx) => {
+                btn.classList.toggle('keyboard-focus', keyboardCategoryActive && idx === keyboardCategoryIndex);
+            });
+            if (keyboardCategoryActive && buttons[keyboardCategoryIndex]) {
+                buttons[keyboardCategoryIndex].scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+            }
+        }
+
+        function handleModeKeyboard(e) {
+            const buttons = document.querySelectorAll('#mode-screen .mode-buttons button');
+            if (buttons.length === 0) return;
+
+            if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+                e.preventDefault();
+                if (!keyboardModeActive) {
+                    keyboardModeActive = true;
+                    keyboardModeIndex = e.key === 'ArrowDown' ? 0 : buttons.length - 1;
+                } else {
+                    if (e.key === 'ArrowDown') {
+                        keyboardModeIndex = (keyboardModeIndex + 1) % buttons.length;
+                    } else {
+                        keyboardModeIndex = (keyboardModeIndex - 1 + buttons.length) % buttons.length;
+                    }
+                }
+                updateModeKeyboardFocus();
+            } else if (e.key === 'Enter' && keyboardModeActive) {
+                e.preventDefault();
+                buttons[keyboardModeIndex].click();
+            }
+        }
+
+        function updateModeKeyboardFocus() {
+            const buttons = document.querySelectorAll('#mode-screen .mode-buttons button');
+            buttons.forEach((btn, idx) => {
+                btn.classList.toggle('keyboard-focus', keyboardModeActive && idx === keyboardModeIndex);
+            });
+            if (keyboardModeActive && buttons[keyboardModeIndex]) {
+                buttons[keyboardModeIndex].scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+            }
+        }
+
+        function handleQuizKeyboard(e) {
+            const question = quizQuestions[currentIndex];
+            if (!question) return;
+            const type = question.type || 'single';
+
+            // 已提交状态：Enter 进入下一题
+            if (answered) {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    nextQuestion();
+                }
+                return;
+            }
+
+            // 填空题：只处理 Enter 提交
+            if (type === 'fill') {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    submitAnswer();
+                }
+                return;
+            }
+
+            // 单选题/判断题
+            const optionDivs = document.querySelectorAll('#options-container .option');
+            const count = optionDivs.length;
+            if (count === 0) return;
+
+            // 数字键 1-9 快速选择
+            if (/^[1-9]$/.test(e.key)) {
+                const idx = parseInt(e.key, 10) - 1;
+                if (idx < count) {
+                    e.preventDefault();
+                    selectOption(idx);
+                    return;
+                }
+            }
+
+            // 上下键移动选择
+            if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+                e.preventDefault();
+                let current = selectedOption !== null ? selectedOption : -1;
+                let next;
+                if (current === -1) {
+                    next = e.key === 'ArrowDown' ? 0 : count - 1;
+                } else if (e.key === 'ArrowDown') {
+                    next = (current + 1) % count;
+                } else {
+                    next = (current - 1 + count) % count;
+                }
+                selectOption(next);
+                return;
+            }
+
+            // Enter 提交答案
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                submitAnswer();
+            }
+        }
+        // ==================== 键盘导航 结束====================
 
         function showCategoryScreen() {
             showScreen('category-screen');
             currentScreen = 'category';
+            keyboardCategoryActive = false;   // 重置键盘激活状态
+            keyboardCategoryIndex = 0;
             renderCategoryButtons();
         }
 
@@ -1210,6 +1409,12 @@
             showScreen('mode-screen');
             currentScreen = 'mode';
             document.getElementById('mode-category-display').textContent = category;
+
+            // 重置键盘高亮到第一个
+            keyboardModeIndex = 0;
+            keyboardModeActive = false;
+            updateModeKeyboardFocus();
+
             const badge = document.getElementById('wrong-count-badge');
             if (badge) {
                 const list = await getWrongListAsync(currentCategory);
@@ -1262,8 +1467,8 @@
         function renderCategoryButtons() {
             const container = document.getElementById('category-buttons');
             container.innerHTML = '';
-            
-            // 无题库时给出提示
+
+            //无题库时给出提示
             if (questions.length === 0) {
                 const tip = document.createElement('p');
                 tip.style.textAlign = 'center';
@@ -1273,18 +1478,25 @@
                 container.appendChild(tip);
                 return;
             }
-            
-            // 从题库中提取所有科目
+
+            //从题库中提取所有科目
             const categoriesInQuestions = [...new Set(questions.map(q => q.category || '未分类'))];
-            categoriesInQuestions.forEach(cat => {
+
+            // 索引边界保护
+            if (keyboardCategoryIndex >= categoriesInQuestions.length) keyboardCategoryIndex = 0;
+            if (keyboardCategoryIndex < 0) keyboardCategoryIndex = 0;
+
+            categoriesInQuestions.forEach((cat, idx) => {
                 const btn = document.createElement('button');
                 btn.textContent = cat;
+                if (keyboardCategoryActive && idx === keyboardCategoryIndex) btn.classList.add('keyboard-focus');
                 btn.onclick = () => {
                     const hasQuestions = questions.some(q => (q.category || '未分类') === cat);
                     if (!hasQuestions) {
                         showAlert(`“${cat}”科目暂无题目，请先导入题库。`, '提示');
                         return;
                     }
+                    keyboardCategoryIndex = idx;  // 记住当前位置
                     playClickSound();
                     showModeScreen(cat);
                 };
